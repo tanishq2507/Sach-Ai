@@ -140,68 +140,97 @@
       color: #555;
     }
     
-    /* Additional styling for better output formatting */
+    /* Enhanced styling for both summary and analysis output */
     .result-section {
       line-height: 1.6;
     }
-    .analysis-content h3 {
+    .analysis-content h3, .summary-content h3 {
       color: #3e50b5;
       margin-top: 1.5em;
       margin-bottom: 0.5em;
+      font-size: 1.3em;
     }
-    .analysis-content ul, .analysis-content ol {
+    .analysis-content ul, .analysis-content ol,
+    .summary-content ul, .summary-content ol {
       padding-left: 1.5em;
       margin-bottom: 1em;
     }
-    .analysis-content p {
+    .analysis-content li, .summary-content li {
+      margin-bottom: 0.5em;
+    }
+    .analysis-content p, .summary-content p {
       margin-bottom: 1em;
     }
-    .analysis-content a {
+    .analysis-content a, .summary-content a {
       color: #5563DE;
       text-decoration: none;
       border-bottom: 1px dotted #5563DE;
+      transition: all 0.2s ease;
     }
-    .analysis-content a:hover {
+    .analysis-content a:hover, .summary-content a:hover {
       border-bottom: 1px solid #5563DE;
+      background-color: rgba(85, 99, 222, 0.05);
     }
-    .analysis-content blockquote {
+    .analysis-content blockquote, .summary-content blockquote {
       border-left: 3px solid #ddd;
       padding-left: 1em;
       margin-left: 0;
       color: #555;
       font-style: italic;
+      background-color: #f5f5f5;
+      padding: 10px 15px;
+      border-radius: 0 4px 4px 0;
     }
-    .analysis-content .fact-check {
+    .analysis-content .fact-check, .summary-content .fact-check {
       background-color: #f8f9ff;
       border-left: 4px solid #5563DE;
       padding: 12px 15px;
       margin: 15px 0;
       border-radius: 4px;
     }
-    .analysis-content .claim {
+    .analysis-content .claim, .summary-content .claim {
       font-weight: 500;
     }
-    .analysis-content .true {
+    .analysis-content .true, .summary-content .true {
       color: #2ecc71;
       font-weight: 600;
     }
-    .analysis-content .false {
+    .analysis-content .false, .summary-content .false {
       color: #e74c3c;
       font-weight: 600;
     }
-    .analysis-content .misleading {
+    .analysis-content .misleading, .summary-content .misleading {
       color: #f39c12;
       font-weight: 600;
     }
-    .analysis-content .uncertain {
+    .analysis-content .uncertain, .summary-content .uncertain {
       color: #7f8c8d;
       font-weight: 600;
     }
-    .analysis-content code {
+    .analysis-content code, .summary-content code {
       background-color: #f5f5f5;
       padding: 2px 4px;
       border-radius: 3px;
       font-family: monospace;
+    }
+    
+    /* Key point highlights in summary */
+    .summary-content .key-point {
+      background-color: rgba(85, 99, 222, 0.08);
+      border-radius: 4px;
+      padding: 10px 15px;
+      margin: 10px 0;
+    }
+    
+    /* Citation styling */
+    .citation {
+      font-size: 0.9em;
+      color: #666;
+      background-color: #f5f5f5;
+      padding: 3px 8px;
+      border-radius: 3px;
+      display: inline-block;
+      margin: 0 2px;
     }
   </style>
 </head>
@@ -226,7 +255,7 @@
       </div>
       <h2>Summary</h2>
       <div class="result-section" id="summary-section">
-        <div id="summary-text" class="analysis-content"></div>
+        <div id="summary-text" class="summary-content"></div>
       </div>
       <h2>Critical Analysis</h2>
       <div class="result-section" id="analysis-section">
@@ -289,11 +318,11 @@
         metadataDiv.innerHTML = metadataHTML;
         
         // Format and display summary
-        const summaryText = formatContent(data.summary);
+        const summaryText = formatContent(data.summary, true);
         document.getElementById('summary-text').innerHTML = summaryText;
         
         // Format and display critical analysis
-        const analysisText = formatContent(data.critical_analysis);
+        const analysisText = formatContent(data.critical_analysis, false);
         document.getElementById('analysis-text').innerHTML = analysisText;
         
         // Update source link
@@ -308,9 +337,26 @@
     });
     
     // Function to format content and make links work
-    function formatContent(content) {
+    function formatContent(content, isSummary) {
+      if (!content) return "";
+      
+      // Process URLs within the text (not in markdown format)
+      content = content.replace(
+        /(https?:\/\/[^\s"<>]+\.[^\s"<>]+)/g, 
+        '<a href="$1" target="_blank" rel="noopener">$1</a>'
+      );
+      
       // Convert markdown-style links to HTML links
-      content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      content = content.replace(
+        /\[([^\]]+)\]\(([^)]+)\)/g, 
+        function(match, text, url) {
+          // Make sure URL has http/https protocol
+          if (!/^https?:\/\//i.test(url)) {
+            url = 'https://' + url;
+          }
+          return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
+        }
+      );
       
       // Format fact check blocks
       content = content.replace(/\*\*(Claim|CLAIM):\*\*\s*(.*?)(?=\*\*(Verdict|VERDICT|Rating|RATING)|\n\n|$)/gi, 
@@ -338,7 +384,10 @@
       
       // Convert markdown lists to HTML
       content = content.replace(/^\* (.*?)$/gm, '<li>$1</li>');
+      content = content.replace(/^\- (.*?)$/gm, '<li>$1</li>');
       content = content.replace(/^\d+\. (.*?)$/gm, '<li>$1</li>');
+      
+      // Detect consecutive list items and wrap them in ul tags
       content = content.replace(/(<li>.*?<\/li>\n)+/gs, function(match) {
         return '<ul>' + match.trim() + '</ul>';
       });
@@ -347,10 +396,26 @@
       content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
       content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
       
+      // Format blockquotes
+      content = content.replace(/^> (.*?)$/gm, '<blockquote>$1</blockquote>');
+      
+      // For summary content, add special formatting for key points
+      if (isSummary) {
+        // Highlight key points in the summary
+        content = content.replace(/^(Key (Points|Findings|Takeaways):?)$/gmi, '<h3>$1</h3>');
+        content = content.replace(/<li>(.*?)<\/li>/g, '<li class="key-point">$1</li>');
+        
+        // Add citation styling
+        content = content.replace(/\[(\d+)\]/g, '<span class="citation">[$1]</span>');
+      }
+      
       // Convert line breaks to paragraphs
       content = '<p>' + content.replace(/\n\n+/g, '</p><p>') + '</p>';
+      
+      // Clean up nested tags
       content = content.replace(/<p><ul>/g, '<ul>').replace(/<\/ul><\/p>/g, '</ul>');
       content = content.replace(/<p><h3>/g, '<h3>').replace(/<\/h3><\/p>/g, '</h3>');
+      content = content.replace(/<p><blockquote>/g, '<blockquote>').replace(/<\/blockquote><\/p>/g, '</blockquote>');
       
       return content;
     }

@@ -3,8 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from flask import Flask, request, jsonify, render_template
-import html
-import markdown
 import time
 
 app = Flask(__name__)
@@ -86,17 +84,27 @@ def analyze_content_with_perplexity(text, content_type):
             "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
             "Content-Type": "application/json"
         }
-        # Generate summary
+        
+        # Generate summary with rich formatting instructions
         summary_prompt = f"""
-        Please provide a concise summary of the following {"YouTube video transcript" if content_type == "youtube" else "article"}.
-        Format your response with clear paragraphs and bullet points when appropriate.
+        Please provide a comprehensive, well-structured summary of the following {"YouTube video transcript" if content_type == "youtube" else "article"}.
+        
+        Format your response with:
+        1. Start with a concise overview paragraph
+        2. Use ### headings to separate key sections when appropriate
+        3. Include bullet points (using * or -) for key findings or main points
+        4. Use **bold** for important points or terms
+        5. If citing specific claims or statistics, reference them as [1], [2], etc.
+        6. If applicable, include a "Key Takeaways" section at the end
+        7. When mentioning sources or references, use proper markdown links: [text](URL)
         
         CONTENT: {text[:4000]}
         """
+        
         summary_payload = {
             "model": "sonar",
             "messages": [
-                {"role": "system", "content": "You are a content summarizer who provides well-structured summaries with paragraphs and bullet points when appropriate."},
+                {"role": "system", "content": "You are a content summarizer who provides well-structured, visually appealing summaries with clear organization, headings, and formatting."},
                 {"role": "user", "content": summary_prompt}
             ]
         }
@@ -128,21 +136,24 @@ def analyze_content_with_perplexity(text, content_type):
         Analyze the following {"YouTube video transcript" if content_type == "youtube" else "article"} for false statements, bias, and propaganda.
         
         Format your response with:
-        1. Clear headings using markdown ### for sections
-        2. Numbered or bullet points for key findings
+        1. Begin with an overview of the content's credibility and potential bias
+        2. Use ### headings to separate key sections of your analysis
         3. For each questionable claim, format as:
            **Claim:** [the claim]
            **Verdict:** [True/False/Misleading/Partially True/etc.]
-           [explanation]
+           [explanation with evidence]
         4. When citing sources, use proper markdown links: [text](URL)
-        5. Use bold (**text**) for important points
+        5. Use **bold** for important points or terms
+        6. Use bullet points (using * or -) for listing related issues or patterns
+        7. End with a conclusion section that summarizes your overall assessment
         
         CONTENT: {text[:4000]}
         """
+        
         analysis_payload = {
             "model": "sonar",
             "messages": [
-                {"role": "system", "content": "You are a fact-checker and media critic who provides well-structured analysis with proper formatting."},
+                {"role": "system", "content": "You are a fact-checker and media critic who provides thorough, well-structured analysis with proper formatting, clear verdicts, and evidence-based assessments."},
                 {"role": "user", "content": analysis_prompt}
             ]
         }
