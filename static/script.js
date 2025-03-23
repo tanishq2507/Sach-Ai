@@ -79,21 +79,23 @@ function formatContent(content, isSummary) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
   
-  // Convert standalone URLs to clickable links
-  content = content.replace(
-    /(https?:\/\/[^\s"<>]+\.[^\s"<>]+)/g, 
-    '<a href="$1" target="_blank" rel="noopener">$1</a>'
-  );
-  
-  // Convert markdown-style links to HTML links
+  // Process markdown-style links first to avoid conflicts
+  // This is a more robust regex for markdown links
   content = content.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g, 
     function(match, text, url) {
+      // Make sure URL has a protocol
       if (!/^https?:\/\//i.test(url)) {
         url = 'https://' + url;
       }
       return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`;
     }
+  );
+  
+  // Convert standalone URLs to clickable links AFTER markdown links
+  content = content.replace(
+    /(?<!["\('])https?:\/\/[^\s"<>]+\.[^\s"<>]+/g, 
+    '<a href="$&" target="_blank" rel="noopener">$&</a>'
   );
   
   // Format fact check blocks
@@ -163,8 +165,16 @@ function formatContent(content, isSummary) {
   // Special formatting for summary (key points, citations)
   if (isSummary) {
     content = content.replace(/^(Key (Points|Findings|Takeaways):?)$/gmi, '<h3>$1</h3>');
+    
+    // Handle citation references properly
     content = content.replace(/\[(\d+)\]/g, '<span class="citation">[$1]</span>');
   }
+  
+  // Add proper handling for Citations section
+  content = content.replace(
+    /### Citations/g,
+    '<h3>Citations</h3>'
+  );
   
   // Parse paragraphs respecting double line breaks
   content = content.split(/\n{2,}/).map(para => {
