@@ -281,3 +281,9 @@ body {
     display: inline-block;
     margin: 0 2px;
   }
+  /* Ensure links in analysis and summary content are clickable */
+.analysis-content a,
+.summary-content a {
+  pointer-events: auto;
+  cursor: pointer;
+}

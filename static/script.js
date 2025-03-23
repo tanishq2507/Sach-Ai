@@ -29,10 +29,10 @@ document.getElementById('analyze-btn').addEventListener('click', function() {
       return;
     }
     
-    // Hide loader
+    // Hide loader and show result
     document.getElementById('loader').style.display = 'none';
-    // Show result
     document.getElementById('result').style.display = 'block';
+    
     // Update metadata section
     const metadataDiv = document.getElementById('metadata');
     let metadataHTML = '';
@@ -52,13 +52,9 @@ document.getElementById('analyze-btn').addEventListener('click', function() {
     }
     metadataDiv.innerHTML = metadataHTML;
     
-    // Format and display summary
-    const summaryText = formatContent(data.summary, true);
-    document.getElementById('summary-text').innerHTML = summaryText;
-    
-    // Format and display critical analysis
-    const analysisText = formatContent(data.critical_analysis, false);
-    document.getElementById('analysis-text').innerHTML = analysisText;
+    // Format and display summary and analysis
+    document.getElementById('summary-text').innerHTML = formatContent(data.summary, true);
+    document.getElementById('analysis-text').innerHTML = formatContent(data.critical_analysis, false);
     
     // Update source link
     const sourceLink = document.getElementById('source-link');
@@ -71,11 +67,11 @@ document.getElementById('analyze-btn').addEventListener('click', function() {
   });
 });
 
-// Function to format content and make links work
+// Function to format content and ensure proper link handling
 function formatContent(content, isSummary) {
   if (!content) return "";
   
-  // First, escape any HTML that might be in the content
+  // Escape HTML characters
   content = content
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -83,7 +79,7 @@ function formatContent(content, isSummary) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
   
-  // Process URLs that are not in markdown format (standalone URLs)
+  // Convert standalone URLs to clickable links
   content = content.replace(
     /(https?:\/\/[^\s"<>]+\.[^\s"<>]+)/g, 
     '<a href="$1" target="_blank" rel="noopener">$1</a>'
@@ -93,7 +89,6 @@ function formatContent(content, isSummary) {
   content = content.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g, 
     function(match, text, url) {
-      // Make sure URL has http/https protocol
       if (!/^https?:\/\//i.test(url)) {
         url = 'https://' + url;
       }
@@ -101,13 +96,13 @@ function formatContent(content, isSummary) {
     }
   );
   
-  // Format fact check blocks - improved regex to capture multi-line claims
+  // Format fact check blocks
   content = content.replace(
     /\*\*(Claim|CLAIM):\*\*\s*([\s\S]*?)(?=\*\*(Verdict|VERDICT|Rating|RATING):|$)/gi, 
     '<div class="fact-check"><span class="claim">Claim:</span> $2</div>'
   );
   
-  // Format verdict/rating indicators with improved styling
+  // Format verdict/rating indicators
   content = content.replace(
     /\*\*(Verdict|VERDICT|Rating|RATING):\*\*\s*([\s\S]*?)(?=\n\n|\*\*(Claim|CLAIM):|$)/gi, 
     function(match, p1, p2) {
@@ -132,11 +127,8 @@ function formatContent(content, isSummary) {
   content = content.replace(/^# (.*?)$/gm, '<h2>$1</h2>');
   
   // Convert markdown lists to HTML
-  // First collect all list items
   const listItemRegex = /^[\*\-] (.*?)$/gm;
   const numberedListItemRegex = /^\d+\. (.*?)$/gm;
-  
-  // Process unordered lists
   let matches;
   let listItems = [];
   while ((matches = listItemRegex.exec(content)) !== null) {
@@ -146,8 +138,6 @@ function formatContent(content, isSummary) {
       html: `<li>${matches[1]}</li>`
     });
   }
-  
-  // Process numbered lists
   while ((matches = numberedListItemRegex.exec(content)) !== null) {
     listItems.push({
       start: matches.index,
@@ -155,14 +145,10 @@ function formatContent(content, isSummary) {
       html: `<li>${matches[1]}</li>`
     });
   }
-  
-  // Replace list items with HTML, starting from the end to not mess up indices
   for (let i = listItems.length - 1; i >= 0; i--) {
     const item = listItems[i];
     content = content.substring(0, item.start) + item.html + content.substring(item.end);
   }
-  
-  // Group consecutive <li> elements with <ul> tags
   content = content.replace(/(<li>.*?<\/li>\n*)+/gs, function(match) {
     return '<ul>' + match.trim() + '</ul>';
   });
@@ -174,28 +160,26 @@ function formatContent(content, isSummary) {
   // Format blockquotes
   content = content.replace(/^> (.*?)$/gm, '<blockquote>$1</blockquote>');
   
-  // For summary content, add special formatting for key points
+  // Special formatting for summary (key points, citations)
   if (isSummary) {
-    // Highlight key points in the summary
     content = content.replace(/^(Key (Points|Findings|Takeaways):?)$/gmi, '<h3>$1</h3>');
-    
-    // Add citation styling
     content = content.replace(/\[(\d+)\]/g, '<span class="citation">[$1]</span>');
   }
   
-  // Parse paragraphs properly by respecting double line breaks
+  // Parse paragraphs respecting double line breaks
   content = content.split(/\n{2,}/).map(para => {
     if (para.trim() && 
         !para.trim().startsWith('<h') && 
         !para.trim().startsWith('<ul') && 
         !para.trim().startsWith('<blockquote') && 
-        !para.trim().startsWith('<div class="fact-check"')) {
+        !para.trim().startsWith('<div class="fact-check"'))
+    {
       return `<p>${para.trim()}</p>`;
     }
     return para.trim();
   }).join('\n\n');
   
-  // Fix nested tags and clean up
+  // Clean up nested tags
   content = content
     .replace(/<p><ul>/g, '<ul>')
     .replace(/<\/ul><\/p>/g, '</ul>')
@@ -210,15 +194,3 @@ function formatContent(content, isSummary) {
   
   return content;
 }
-
-// Add event listener to make links in the formatted content interactive
-document.addEventListener('DOMContentLoaded', function() {
-  // Add click event delegation for all links in the result container
-  document.getElementById('result').addEventListener('click', function(e) {
-    if (e.target.tagName === 'A') {
-      // Open link in new tab/window
-      window.open(e.target.href, '_blank', 'noopener');
-      e.preventDefault(); // Prevent default link behavior
-    }
-  });
-});
