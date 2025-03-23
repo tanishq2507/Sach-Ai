@@ -1,14 +1,17 @@
 import re
 import requests
 from bs4 import BeautifulSoup
-from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api import YouTubeTranscriptApi, _errors
 from flask import Flask, request, jsonify, render_template
 import time
+import os
+from dotenv import load_dotenv
 
+load_dotenv() 
 app = Flask(__name__)
 
 # Configure your Perplexity API key
-PERPLEXITY_API_KEY = "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"
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
 def extract_youtube_id(url):
     """Extract YouTube video ID from URL"""
@@ -22,6 +25,10 @@ def get_youtube_transcript(video_id):
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         transcript = ' '.join([item['text'] for item in transcript_list])
         return transcript
+    except _errors.TranscriptsDisabled:
+        return "TRANSCRIPT_DISABLED"
+    except _errors.NoTranscriptAvailable:
+        return "NO_TRANSCRIPT"
     except Exception as e:
         return f"Error retrieving transcript: {str(e)}"
 
@@ -209,10 +216,13 @@ def analyze():
         return jsonify({'error': 'URL is required'}), 400
     content_type = determine_content_type(url)
     metadata = {}
+    
     if content_type == 'youtube':
         video_id = extract_youtube_id(url)
         if not video_id:
             return jsonify({'error': 'Invalid YouTube URL'}), 400
+            
+        # Fetch video metadata first
         try:
             video_info_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
             video_info_response = requests.get(video_info_url)
@@ -228,7 +238,15 @@ def analyze():
                 "author": "Unknown",
                 "upload_date": "Unknown"
             }
+            
+        # Get transcript and check if it's available
         content = get_youtube_transcript(video_id)
+        if content == "TRANSCRIPT_DISABLED" or content == "NO_TRANSCRIPT":
+            # Return early with an error message if transcript is not available
+            return jsonify({
+                'error': 'The transcript for this YouTube video is not available. Unable to analyze content.'
+            }), 400
+            
     else:
         article_data = extract_article_content(url)
         if isinstance(article_data, dict) and "error" not in article_data:
@@ -241,6 +259,7 @@ def analyze():
         else:
             return jsonify({'error': 'Failed to extract article content'}), 400
 
+    # Only proceed with analysis if we have content to analyze
     analysis_results = analyze_content_with_perplexity(content, content_type)
     
     # Return raw markdown/text to let the frontend handle formatting
