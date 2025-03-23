@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 # limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
 BLOCKED_IPS = {"192.168.1.1", "203.0.113.0"}
-CORS(app, origins=["http://127.0.0.1:5000/"]) 
+CORS(app, origins=["https://sach-ai.onrender.com/"]) 
 # Configure your Perplexity API key
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
