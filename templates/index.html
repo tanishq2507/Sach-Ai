@@ -139,12 +139,76 @@
       font-size: 14px;
       color: #555;
     }
+    
+    /* Additional styling for better output formatting */
+    .result-section {
+      line-height: 1.6;
+    }
+    .analysis-content h3 {
+      color: #3e50b5;
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    .analysis-content ul, .analysis-content ol {
+      padding-left: 1.5em;
+      margin-bottom: 1em;
+    }
+    .analysis-content p {
+      margin-bottom: 1em;
+    }
+    .analysis-content a {
+      color: #5563DE;
+      text-decoration: none;
+      border-bottom: 1px dotted #5563DE;
+    }
+    .analysis-content a:hover {
+      border-bottom: 1px solid #5563DE;
+    }
+    .analysis-content blockquote {
+      border-left: 3px solid #ddd;
+      padding-left: 1em;
+      margin-left: 0;
+      color: #555;
+      font-style: italic;
+    }
+    .analysis-content .fact-check {
+      background-color: #f8f9ff;
+      border-left: 4px solid #5563DE;
+      padding: 12px 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .analysis-content .claim {
+      font-weight: 500;
+    }
+    .analysis-content .true {
+      color: #2ecc71;
+      font-weight: 600;
+    }
+    .analysis-content .false {
+      color: #e74c3c;
+      font-weight: 600;
+    }
+    .analysis-content .misleading {
+      color: #f39c12;
+      font-weight: 600;
+    }
+    .analysis-content .uncertain {
+      color: #7f8c8d;
+      font-weight: 600;
+    }
+    .analysis-content code {
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Sach Ai</h1>
-    <div class="quote">“Three things cannot be long hidden: the sun, the moon, and the truth.” – Buddha</div>
+    <div class="quote">"Three things cannot be long hidden: the sun, the moon, and the truth." – Buddha</div>
   </header>
   <div class="container">
     <p class="description">
@@ -162,11 +226,11 @@
       </div>
       <h2>Summary</h2>
       <div class="result-section" id="summary-section">
-        <div id="summary-text"></div>
+        <div id="summary-text" class="analysis-content"></div>
       </div>
       <h2>Critical Analysis</h2>
       <div class="result-section" id="analysis-section">
-        <div id="analysis-text"></div>
+        <div id="analysis-text" class="analysis-content"></div>
       </div>
       <div class="source-link">
         <a id="source-link" href="#" target="_blank">View Original Content</a>
@@ -223,9 +287,15 @@
           `;
         }
         metadataDiv.innerHTML = metadataHTML;
-        // Update summary and analysis
-        document.getElementById('summary-text').innerHTML = data.summary;
-        document.getElementById('analysis-text').innerHTML = data.critical_analysis;
+        
+        // Format and display summary
+        const summaryText = formatContent(data.summary);
+        document.getElementById('summary-text').innerHTML = summaryText;
+        
+        // Format and display critical analysis
+        const analysisText = formatContent(data.critical_analysis);
+        document.getElementById('analysis-text').innerHTML = analysisText;
+        
         // Update source link
         const sourceLink = document.getElementById('source-link');
         sourceLink.href = data.source_url;
@@ -236,6 +306,54 @@
         console.error('Error:', error);
       });
     });
+    
+    // Function to format content and make links work
+    function formatContent(content) {
+      // Convert markdown-style links to HTML links
+      content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+      
+      // Format fact check blocks
+      content = content.replace(/\*\*(Claim|CLAIM):\*\*\s*(.*?)(?=\*\*(Verdict|VERDICT|Rating|RATING)|\n\n|$)/gi, 
+        '<div class="fact-check"><span class="claim">Claim:</span> $2</div>');
+      
+      // Format verdict/rating indicators
+      content = content.replace(/\*\*(Verdict|VERDICT|Rating|RATING):\*\*\s*(.*?)(?=\n|$)/gi, 
+        function(match, p1, p2) {
+          let className = '';
+          if (p2.toLowerCase().includes('true') || p2.toLowerCase().includes('accurate')) {
+            className = 'true';
+          } else if (p2.toLowerCase().includes('false') || p2.toLowerCase().includes('inaccurate')) {
+            className = 'false';
+          } else if (p2.toLowerCase().includes('misleading') || p2.toLowerCase().includes('partially')) {
+            className = 'misleading';
+          } else {
+            className = 'uncertain';
+          }
+          return `<span class="claim">${p1}:</span> <span class="${className}">${p2}</span>`;
+        });
+      
+      // Convert markdown headings to HTML
+      content = content.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+      content = content.replace(/^## (.*?)$/gm, '<h3>$1</h3>');
+      
+      // Convert markdown lists to HTML
+      content = content.replace(/^\* (.*?)$/gm, '<li>$1</li>');
+      content = content.replace(/^\d+\. (.*?)$/gm, '<li>$1</li>');
+      content = content.replace(/(<li>.*?<\/li>\n)+/gs, function(match) {
+        return '<ul>' + match.trim() + '</ul>';
+      });
+      
+      // Convert markdown emphasis
+      content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+      
+      // Convert line breaks to paragraphs
+      content = '<p>' + content.replace(/\n\n+/g, '</p><p>') + '</p>';
+      content = content.replace(/<p><ul>/g, '<ul>').replace(/<\/ul><\/p>/g, '</ul>');
+      content = content.replace(/<p><h3>/g, '<h3>').replace(/<\/h3><\/p>/g, '</h3>');
+      
+      return content;
+    }
   </script>
 </body>
 </html>

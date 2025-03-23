@@ -2,8 +2,10 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
-import json
 from flask import Flask, request, jsonify, render_template
+import html
+import markdown
+import time
 
 app = Flask(__name__)
 
@@ -56,7 +58,7 @@ def extract_article_content(url):
         for script in soup(["script", "style"]):
             script.extract()
         
-        # Get text content
+        # Get text content from paragraphs
         paragraphs = soup.find_all('p')
         text = ' '.join([para.get_text() for para in paragraphs])
         
@@ -69,8 +71,10 @@ def extract_article_content(url):
     except Exception as e:
         return {"error": f"Error extracting article: {str(e)}"}
 
-def analyze_content_with_perplexity(text, content_type, max_length=300):
-    """Generate summary and critical analysis using Perplexity AI API"""
+def analyze_content_with_perplexity(text, content_type):
+    """Generate summary and critical analysis using Perplexity AI API.
+       The API returns the analysis as plain text or HTML, which we then pass directly to the frontend.
+    """
     if not text or len(text) < 100:
         return {
             "summary": "Not enough content to analyze.",
@@ -82,50 +86,86 @@ def analyze_content_with_perplexity(text, content_type, max_length=300):
             "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
             "Content-Type": "application/json"
         }
-        # Generate a summary
+        # Generate summary
         summary_prompt = f"""
         Please provide a concise summary of the following {"YouTube video transcript" if content_type == "youtube" else "article"}.
+        Format your response with clear paragraphs and bullet points when appropriate.
         
         CONTENT: {text[:4000]}
         """
         summary_payload = {
             "model": "sonar",
             "messages": [
-                {"role": "system", "content": "You are a content summarizer."},
+                {"role": "system", "content": "You are a content summarizer who provides well-structured summaries with paragraphs and bullet points when appropriate."},
                 {"role": "user", "content": summary_prompt}
             ]
         }
-        summary_response = requests.post(api_url, headers=headers, json=summary_payload)
-        if summary_response.status_code != 200:
-            return {
-                "summary": f"Error: API returned status code {summary_response.status_code}",
-                "analysis": "Could not complete analysis due to API error"
-            }
+        
+        # Add retry mechanism for API calls
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                summary_response = requests.post(api_url, headers=headers, json=summary_payload)
+                summary_response.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    return {
+                        "summary": f"Error: API request failed after multiple attempts: {str(e)}",
+                        "analysis": "Could not complete analysis due to API error"
+                    }
+        
         summary_data = summary_response.json()
         summary = summary_data["choices"][0]["message"]["content"]
         
-        # Generate critical analysis
+        # Generate critical analysis with improved formatting instructions
         analysis_prompt = f"""
         Analyze the following {"YouTube video transcript" if content_type == "youtube" else "article"} for false statements, bias, and propaganda.
+        
+        Format your response with:
+        1. Clear headings using markdown ### for sections
+        2. Numbered or bullet points for key findings
+        3. For each questionable claim, format as:
+           **Claim:** [the claim]
+           **Verdict:** [True/False/Misleading/Partially True/etc.]
+           [explanation]
+        4. When citing sources, use proper markdown links: [text](URL)
+        5. Use bold (**text**) for important points
         
         CONTENT: {text[:4000]}
         """
         analysis_payload = {
             "model": "sonar",
             "messages": [
-                {"role": "system", "content": "You are a fact-checker and media critic."},
+                {"role": "system", "content": "You are a fact-checker and media critic who provides well-structured analysis with proper formatting."},
                 {"role": "user", "content": analysis_prompt}
             ]
         }
-        analysis_response = requests.post(api_url, headers=headers, json=analysis_payload)
-        if analysis_response.status_code != 200:
-            return {
-                "summary": summary,
-                "analysis": f"Error: API returned status code {analysis_response.status_code}"
-            }
+        
+        for attempt in range(max_retries):
+            try:
+                analysis_response = requests.post(api_url, headers=headers, json=analysis_payload)
+                analysis_response.raise_for_status()
+                break
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    return {
+                        "summary": summary,
+                        "analysis": f"Error: API request failed after multiple attempts: {str(e)}"
+                    }
+                    
         analysis_data = analysis_response.json()
         analysis = analysis_data["choices"][0]["message"]["content"]
         
+        # Return both summary and analysis
         return {
             "summary": summary,
             "analysis": analysis
@@ -137,7 +177,7 @@ def analyze_content_with_perplexity(text, content_type, max_length=300):
         return {
             "summary": f"Error generating summary: {str(e)}",
             "analysis": f"Error performing analysis: {str(e)}"
-        }       
+        }
 
 def determine_content_type(url):
     """Determine type of content from URL"""
@@ -189,7 +229,10 @@ def analyze():
             }
         else:
             return jsonify({'error': 'Failed to extract article content'}), 400
+
     analysis_results = analyze_content_with_perplexity(content, content_type)
+    
+    # Return raw markdown/text to let the frontend handle formatting
     return jsonify({
         'content_type': content_type,
         'metadata': metadata,
