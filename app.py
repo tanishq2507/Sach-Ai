@@ -24,6 +24,8 @@ def get_youtube_transcript(video_id):
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         transcript = ' '.join([item['text'] for item in transcript_list])
+        # Debug print for transcript text
+        print("DEBUG: YouTube Transcript:", transcript)
         return transcript
     except _errors.TranscriptsDisabled:
         return "TRANSCRIPT_DISABLED"
@@ -75,6 +77,15 @@ def extract_article_content(url):
         }
     except Exception as e:
         return {"error": f"Error extracting article: {str(e)}"}
+
+def append_citations(text, citations):
+    """Append citations to the text in markdown format if available."""
+    if citations and isinstance(citations, list) and len(citations) > 0:
+        citation_md = "\n\n### Citations\n"
+        for idx, link in enumerate(citations, 1):
+            citation_md += f"* [{idx}]({link})\n"
+        return text + citation_md
+    return text
 
 def analyze_content_with_perplexity(text, content_type):
     """Generate summary and critical analysis using Perplexity AI API.
@@ -136,7 +147,11 @@ def analyze_content_with_perplexity(text, content_type):
                     }
         
         summary_data = summary_response.json()
+        # Debug print for summary response
+        print("DEBUG: Perplexity Summary Response:", summary_data)
         summary = summary_data["choices"][0]["message"]["content"]
+        # Append citations if available
+        summary = append_citations(summary, summary_data.get("citations", []))
         
         # Generate critical analysis with improved formatting instructions
         analysis_prompt = f"""
@@ -181,7 +196,11 @@ def analyze_content_with_perplexity(text, content_type):
                     }
                     
         analysis_data = analysis_response.json()
+        # Debug print for analysis response
+        print("DEBUG: Perplexity Analysis Response:", analysis_data)
         analysis = analysis_data["choices"][0]["message"]["content"]
+        # Append citations if available
+        analysis = append_citations(analysis, analysis_data.get("citations", []))
         
         # Return both summary and analysis
         return {
@@ -241,8 +260,9 @@ def analyze():
             
         # Get transcript and check if it's available
         content = get_youtube_transcript(video_id)
+        # Print transcript for debugging
+        print("DEBUG: Transcript content:", content)
         if content == "TRANSCRIPT_DISABLED" or content == "NO_TRANSCRIPT":
-            # Return early with an error message if transcript is not available
             return jsonify({
                 'error': 'The transcript for this YouTube video is not available. Unable to analyze content.'
             }), 400
@@ -261,6 +281,9 @@ def analyze():
 
     # Only proceed with analysis if we have content to analyze
     analysis_results = analyze_content_with_perplexity(content, content_type)
+    
+    # Print Perplexity responses for debugging
+    print("DEBUG: Perplexity Analysis Results:", analysis_results)
     
     # Return raw markdown/text to let the frontend handle formatting
     return jsonify({
