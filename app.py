@@ -6,10 +6,16 @@ from flask import Flask, request, jsonify, render_template
 import time
 import os
 from dotenv import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_cors import CORS
 
 load_dotenv() 
 app = Flask(__name__)
 
+# limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
+BLOCKED_IPS = {"192.168.1.1", "203.0.113.0"}
+CORS(app, origins=["http://127.0.0.1:5000/"]) 
 # Configure your Perplexity API key
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
@@ -24,8 +30,7 @@ def get_youtube_transcript(video_id):
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         transcript = ' '.join([item['text'] for item in transcript_list])
-        # Debug print for transcript text
-        print("DEBUG: YouTube Transcript:", transcript)
+
         return transcript
     except _errors.TranscriptsDisabled:
         return "TRANSCRIPT_DISABLED"
@@ -147,8 +152,7 @@ def analyze_content_with_perplexity(text, content_type):
                     }
         
         summary_data = summary_response.json()
-        # Debug print for summary response
-        print("DEBUG: Perplexity Summary Response:", summary_data)
+        
         summary = summary_data["choices"][0]["message"]["content"]
         # Append citations if available
         summary = append_citations(summary, summary_data.get("citations", []))
@@ -196,8 +200,7 @@ def analyze_content_with_perplexity(text, content_type):
                     }
                     
         analysis_data = analysis_response.json()
-        # Debug print for analysis response
-        print("DEBUG: Perplexity Analysis Response:", analysis_data)
+        
         analysis = analysis_data["choices"][0]["message"]["content"]
         # Append citations if available
         analysis = append_citations(analysis, analysis_data.get("citations", []))
@@ -209,8 +212,8 @@ def analyze_content_with_perplexity(text, content_type):
         }
     except Exception as e:
         import traceback
-        print(f"Exception in analyze_content_with_perplexity: {str(e)}")
-        print(traceback.format_exc())
+        # print(f"Exception in analyze_content_with_perplexity: {str(e)}")
+        # print(traceback.format_exc())
         return {
             "summary": f"Error generating summary: {str(e)}",
             "analysis": f"Error performing analysis: {str(e)}"
@@ -222,12 +225,19 @@ def determine_content_type(url):
         return 'youtube'
     else:
         return 'article'
+    
 
+@app.before_request
+def block_bad_ips():
+    if request.remote_addr in BLOCKED_IPS:
+        return jsonify({'error': 'Access denied'}), 403
+    
 @app.route('/')
 def home():
     return render_template('index.html')
 
 @app.route('/analyze', methods=['POST'])
+# @limiter.limit("5 per minute") 
 def analyze():
     data = request.get_json()
     url = data.get('url')
@@ -260,8 +270,7 @@ def analyze():
             
         # Get transcript and check if it's available
         content = get_youtube_transcript(video_id)
-        # Print transcript for debugging
-        print("DEBUG: Transcript content:", content)
+
         if content == "TRANSCRIPT_DISABLED" or content == "NO_TRANSCRIPT":
             return jsonify({
                 'error': 'The transcript for this YouTube video is not available. Unable to analyze content.'
@@ -281,10 +290,7 @@ def analyze():
 
     # Only proceed with analysis if we have content to analyze
     analysis_results = analyze_content_with_perplexity(content, content_type)
-    
-    # Print Perplexity responses for debugging
-    print("DEBUG: Perplexity Analysis Results:", analysis_results)
-    
+       
     # Return raw markdown/text to let the frontend handle formatting
     return jsonify({
         'content_type': content_type,

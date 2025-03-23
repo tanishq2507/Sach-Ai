@@ -1,0 +1,8 @@
+Flask
+requests
+beautifulsoup4
+youtube_transcript_api
+python-dotenv
+flask-limiter
+flask-cors
+gunicorn
