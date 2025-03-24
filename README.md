@@ -62,6 +62,10 @@ Sach Ai is an advanced web application designed to analyze and critically examin
 ## Live Demo
 [Sach Ai Web Application](https://sach-ai.onrender.com/)
 
+![Screenshot (281)](https://github.com/user-attachments/assets/1a32d8c2-07a3-45ca-959a-2b54baf91de8)
+![Screenshot (280)](https://github.com/user-attachments/assets/e9f5c809-7f74-4fe2-b409-aafeefd23722)
+![Screenshot (279)](https://github.com/user-attachments/assets/3829053f-b090-4582-a086-7f48141565e2)
+
 ## Contributing
 Contributions, issues, and feature requests are welcome!
 
